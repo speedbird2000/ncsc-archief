@@ -1,0 +1,45 @@
+name: Archief bijwerken
+
+on:
+  schedule:
+    - cron: "17 4 * * *"      # elke nacht om 04:17 UTC
+  workflow_dispatch:           # handmatig starten via het tabblad Actions
+  push:
+    branches: [main]
+    paths:
+      - "scripts/**"
+      - ".github/workflows/archief-bijwerken.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: archief
+  cancel-in-progress: false
+
+jobs:
+  bijwerken:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Nieuwe en gewijzigde adviezen ophalen
+        run: python scripts/bouw_archief.py
+
+      - name: Wijzigingen vastleggen
+        run: |
+          git add data
+          if git diff --cached --quiet; then
+            echo "Geen nieuwe of gewijzigde adviezen."
+            exit 0
+          fi
+          aantal=$(python -c "import json;print(json.load(open('data/ncsc-archief.json'))['aantal'])")
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Archief bijgewerkt: $aantal adviezen ($(date -u +%Y-%m-%d))"
+          git push
